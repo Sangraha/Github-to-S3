@@ -11,6 +11,10 @@
 #
 # Happy Coding!
 
+#todo : sns configurations for different environments
+#todo : secretsmanager configuration of different environments
+#todo : construct arns
+
 service: Github-to-S3
 
 # You can pin your service to only deploy with a specific Serverless version
@@ -27,6 +31,12 @@ provider:
         - "sns:Publish"
       Resource:
         - "arn:aws:sns:us-east-1:670533574044:github-file-to-copy"
+    - Effect: 'Allow'
+      Action:
+        - "secretsmanager:GetSecretValue"
+        - "secretsmanager:DescribeSecret"
+      Resource:
+        - "arn:aws:secretsmanager:us-east-1:670533574044:secret:/prod/githubCopy/appConfig-GxQvt5"
 
 # you can overwrite defaults here
 #  stage: dev
