@@ -95,8 +95,13 @@ def get_secret():
     log.debug("SECRECT : {}".format(secret))
     return json.loads(secret)
 
-def send_message():
-    message = {"foo": "bar"}
+def send_message(repname, githubFile, s3bucket, s3basedir, s3path):
+    message = {"repositoryName": repname,
+               "githubFile" : githubFile,
+               "s3bucket" : s3bucket,
+               "s3basedir": s3basedir,
+               "s3path" : s3path
+               }
     client = boto3.client('sns')
 
     sns_response = client.publish(
@@ -106,17 +111,18 @@ def send_message():
     )
     log.debug("send message response :" + sns_response)
 
-def queue_files_to_download(repository, sha, server_path, bucket, basedir):
+def queue_files_to_download(repository, sha, server_path, bucket, basedir, repname):
     contents = repository.get_dir_contents(server_path, ref=sha)
     for content in contents:
         if content.type == 'dir':
-            queue_files_to_download(repository, sha, content.path, bucket, basedir+"/"+content.path)
+            queue_files_to_download(repository, sha, content.path, bucket, basedir+"/"+content.path,repname)
         else :
             try:
                 path = content.path
                 #file_content = repository.get_contents(path, ref=sha)
                 #file_data = base64.b64decode(file_content.content)
                 #s3.Object(bucket, basedir + "/" +content.name).put(Body=file_data)
+                send_message(repname, path, bucket,basedir,content.name)
                 log.debug( "queing file = {}".format( path) + " to s3 path = {}".format( basedir) + "/".format( content.name))
             except (GithubException, IOError) as exc:
                 log.error('Error processing %s: %s', content.path, exc)
@@ -225,7 +231,7 @@ def githubWebhook(event, context):
                 r = g.get_user().get_repo(repository)
                 f_c = r.get_branches()
                 matched_branches = [match for match in f_c if match.name == "master"]
-                queue_files_to_download(r, matched_branches[0].commit.sha, "/", node['bucket'], node['bucketDir'])
+                queue_files_to_download(r, matched_branches[0].commit.sha, "/", node['bucket'], node['bucketDir'],repository )
                 log.debug("Queued files for Download")
                 plain_ret['body']['msg'] = "Push event processed"
                 plain_ret['statusCode'] = 200
