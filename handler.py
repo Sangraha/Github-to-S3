@@ -114,10 +114,10 @@ def queue_files_to_download(repository, sha, server_path, bucket, basedir):
         else :
             try:
                 path = content.path
-                file_content = repository.get_contents(path, ref=sha)
-                file_data = base64.b64decode(file_content.content)
+                #file_content = repository.get_contents(path, ref=sha)
+                #file_data = base64.b64decode(file_content.content)
                 #s3.Object(bucket, basedir + "/" +content.name).put(Body=file_data)
-                log.debug( "queing file = ", content.name, " to s3 path = ", basedir + "/" +content.name)
+                log.debug( "queing file = {}".format( path) + " to s3 path = {}".format( basedir) + "/".format( content.name))
             except (GithubException, IOError) as exc:
                 log.error('Error processing %s: %s', content.path, exc)
 
@@ -184,26 +184,16 @@ def githubWebhook(event, context):
                 raise BreakoutException
 
             sha_name, signature = header_signature.split('=')
-            log.debug ("header_signature = {}".format(header_signature))
+            log.info ("header_signature = {}".format(header_signature))
             log.debug ("sha_name = {}".format( sha_name))
-            log.debug ("signature = ".format( signature))
+            log.debug ("signature = {} ".format( signature))
             sha_name = sha_name.strip()
             if sha_name != 'sha1':
                 plain_ret['body']['msg'] = 'Only sha1 is supported'
                 plain_ret['statusCode'] = 501
                 raise BreakoutException
 
-            # HMAC requires the key to be bytes, but data is string -- FIXME
-            ''''
-            mac = hmac.new(str(secret), msg=str(event["payload"]), digestmod=hashlib.sha1)
-            if not hmac.compare_digest(str(mac.hexdigest()), str(signature)):
-                print ("signature mismatch " , mac.hexdigest(), signature)
-                plain_ret['body']['msg']  = 'Invalid signature'
-                plain_ret['statusCode'] = 403
-                raise BreakoutException
-            '''
-
-        #validate
+        #validate signature
         log.debug("event body = {}".format(event['body']))
         body = json.loads(event['body'])
         repository = body['repository']['name']
@@ -214,7 +204,12 @@ def githubWebhook(event, context):
         bodyAsbytearray = bytearray()
         bodyAsbytearray.extend(map(ord, str(event["body"])))
         mac = hmac.new(secretAsbytearray, msg=bodyAsbytearray, digestmod=hashlib.sha1)
-        log.debug("calculated mac=", mac.hexdigest())
+        log.info("calculated mac={}".format( mac.hexdigest()))
+        if not hmac.compare_digest(str(mac.hexdigest()), str(signature)):
+            log.error ("signature mismatch ")
+            plain_ret['body']['msg']  = 'Invalid signature'
+            plain_ret['statusCode'] = 403
+            raise BreakoutException
 
         # implement ping
         githubEvent = githubEvent.strip()
