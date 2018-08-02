@@ -220,7 +220,7 @@ def githubWebhook(event, context):
         githubEvent = githubEvent.strip()
         if githubEvent == 'ping':
             plain_ret['body']['msg'] = 'pong'
-            plain_ret['statusCode'] = 200s
+            plain_ret['statusCode'] = 200
             raise BreakoutException
 
         plain_ret['body']['msg'] = 'No processing done as event was not relevant'
