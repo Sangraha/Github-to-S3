@@ -92,6 +92,7 @@ def get_secret():
             binary_secret_data = get_secret_value_response['SecretBinary']
             log.debug("binary secret is not being handled here")
             # Your code goes here.
+    log.debug("SECRECT : {}".format(secret))
     return json.loads(secret)
 
 def send_message():
@@ -130,6 +131,7 @@ def download_file(repository, path,sha,bucket,content, basedir):
 
 
 def githubWebhook(event, context):
+    log.debug("event : ", event)
     headers = event["headers"]
     sig = headers['X-Hub-Signature']
     githubEvent = headers['X-GitHub-Event']
@@ -154,7 +156,7 @@ def githubWebhook(event, context):
             load_github_config()
 
         secret = g_myGithubConfig.get_config()
-        log.debug ("secret = ", secret)
+        log.debug ("secret = {}".format(secret))
         if secret is None:
             plain_ret['body']['msg'] = 'Internal Configuration Problems'
             plain_ret['statusCode'] = 500
@@ -182,9 +184,9 @@ def githubWebhook(event, context):
                 raise BreakoutException
 
             sha_name, signature = header_signature.split('=')
-            log.debug ("header_signature = ", header_signature)
-            log.debug ("sha_name = ", sha_name)
-            log.debug ("signature = ", signature)
+            log.debug ("header_signature = {}".format(header_signature))
+            log.debug ("sha_name = {}".format( sha_name))
+            log.debug ("signature = ".format( signature))
             sha_name = sha_name.strip()
             if sha_name != 'sha1':
                 plain_ret['body']['msg'] = 'Only sha1 is supported'
