@@ -29,20 +29,19 @@ g_github_secret_name = "/prod/githubCopy/appConfig"
 g_s3_access_name  = "prod/s3/appKeys"
 g_endpoint_url = "https://secretsmanager.us-east-1.amazonaws.com"
 g_region_name = "us-east-1"
+
 g_myGithubConfig = None
 g_mys3AccessKeys = None
 
 def load_github_config():
     global g_myGithubConfig
     if g_myGithubConfig is None:
-        log.debug("Loading config and creating new MyApp...")
         config = get_secret(g_github_secret_name)
         g_myGithubConfig = ConfigWrapper(config)
 
 def load_s3_access_config():
     global g_mys3AccessKeys
     if g_mys3AccessKeys is None:
-        log.debug("Loading config and creating new MyApp...")
         config = get_secret(g_s3_access_name)
         g_mys3AccessKeys = ConfigWrapper(config)
 
@@ -145,7 +144,11 @@ def download_file(repository, githubFile,sha,s3bucket,s3path, s3basedir, access_
 
 
 def githubWebhook(event, context):
+    global g_sns_arn
+
     log.debug("event : ", event)
+    g_sns_arn = os.environ['snsarn']
+    log.info(" sns queue to use ".format(g_sns_arn))
     headers = event["headers"]
     sig = headers['X-Hub-Signature']
     githubEvent = headers['X-GitHub-Event']
@@ -276,8 +279,7 @@ def githubFileCopy(event, context):
         pass
 
     return {
-        "message": "Go Serverless v1.0! Your function executed successfully!",
-        "event": event
+        "message": message["githubFile"] + " downloaded",
     }
 
 
