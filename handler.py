@@ -26,7 +26,7 @@ log.setLevel(logging.DEBUG)
 #  all required configurations
 g_sns_arn = "arn:aws:sns:us-east-1:670533574044:github-file-to-copy"
 g_github_secret_name = "/prod/githubCopy/appConfig"
-g_s3_access_name  = "prod/s3/appKeys"
+g_s3_access_name  = "/prod/s3/appKeys"
 g_endpoint_url = "https://secretsmanager.us-east-1.amazonaws.com"
 g_region_name = "us-east-1"
 
@@ -145,9 +145,11 @@ def download_file(repository, githubFile,sha,s3bucket,s3path, s3basedir, access_
 
 def githubWebhook(event, context):
     global g_sns_arn
+    global g_github_secret_name
 
     log.debug("event : ", event)
     g_sns_arn = os.environ['snsarn']
+    g_github_secret_name = os.environ['githubconfig']
     log.info(" sns queue to use ".format(g_sns_arn))
     headers = event["headers"]
     sig = headers['X-Hub-Signature']
@@ -260,6 +262,8 @@ def githubWebhook(event, context):
 
 
 def githubFileCopy(event, context):
+    global g_github_secret_name
+    global g_s3_access_name
     log.debug("Received event {}".format(json.dumps(event)))
 
     try:
@@ -267,9 +271,12 @@ def githubFileCopy(event, context):
         if g_myGithubConfig is None:
             load_github_config()
         secret = g_myGithubConfig.get_config()
+
         if g_mys3AccessKeys is None:
             load_s3_access_config()
         s3_access_keys = g_mys3AccessKeys.get_config()
+        g_github_secret_name = os.environ['githubconfig']
+        g_s3_access_name = os.environ['s3accessKeys']
         node = secret[message["repositoryName"]]
         g = Github(node['githubAPIKey'])
         r = g.get_user().get_repo(message["repositoryName"])
