@@ -49,8 +49,10 @@ functions:
       - http:
           path: webhook/githubWebhook
           method: post
+    Timeout: 300
   githubFileCopy:
     handler: handler.githubFileCopy
     events:
       - sns: ${self:custom.githubFileToCopy}
+    Timeout: 300
 
