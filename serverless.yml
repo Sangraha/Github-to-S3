@@ -9,6 +9,8 @@ provider:
   name: aws
   runtime: python3.6
   profile: serverless
+  environment:
+    snsarn: { "Fn::Join" : ["", ["arn:aws:sns:${self:custom.region}:", { "Ref" : "AWS::AccountId" }, ":${self:custom.githubFileToCopy}" ] ]  }
   iamRoleStatements:
     - Effect: 'Allow'
       Action:
@@ -19,8 +21,8 @@ provider:
       Action:
         - "secretsmanager:*"
       Resource:
-        - "arn:aws:secretsmanager:us-east-1:670533574044:secret:/prod/githubCopy/appConfig-GxQvt5"
-        - "arn:aws:secretsmanager:us-east-1:670533574044:secret:prod/s3/appKeys-95tOPE"
+        - {"Fn::Join" : ["", ["arn:aws:secretsmanager:${self:custom.region}:", { "Ref" : "AWS::AccountId" }, ":secret:${self:custom.githubSecret}" ] ]}
+        - {"Fn::Join" : ["", ["arn:aws:secretsmanager:${self:custom.region}:", { "Ref" : "AWS::AccountId" }, ":secret:${self:custom.s3accessKeys}" ] ]}
     - Effect: 'Allow'
       Action:
         - "kms:*"
@@ -28,9 +30,11 @@ provider:
         - "arn:aws:kms:us-east-1:670533574044:key/f1f6bf8b-c32c-4818-82cf-7e3622c87c09"
 
 custom:
-  stage: ${opt:stage , self.provider.stage}
-  region: ${opt:region , self.provider.region}
+  stage: ${opt:stage , self:provider.stage}
+  region: ${opt:region , self:provider.region}
   githubFileToCopy: "${self:service}-github-file-to-copy-${self:custom.stage}"
+  githubSecret: "/${self:custom.stage}/githubCopy/appConfig-??????"
+  s3accessKeys: "/${self:custom.stage}/s3/appKeys-??????"
 
 package:
   include:
@@ -43,8 +47,6 @@ functions:
       - http:
           path: webhook/githubWebhook
           method: post
-    enviornment:
-      snsarn: { "Fn::Join" : ["", ["arn:aws:sns:${self:custom.region}:", { "Ref" : "AWS::AccountId" }, ":${self:custom.githubFileToCopy}" ] ]  }
   githubFileCopy:
     handler: handler.githubFileCopy
     events:
