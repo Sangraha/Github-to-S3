@@ -36,6 +36,7 @@ provider:
         - "secretsmanager:*"
       Resource:
         - "arn:aws:secretsmanager:us-east-1:670533574044:secret:/prod/githubCopy/appConfig-GxQvt5"
+        - "arn:aws:secretsmanager:us-east-1:670533574044:secret:prod/s3/appKeys-95tOPE"
     - Effect: 'Allow'
       Action:
         - "kms:*"

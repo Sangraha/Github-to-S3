@@ -25,25 +25,33 @@ log.setLevel(logging.DEBUG)
 
 #  all required configurations
 g_sns_arn = "arn:aws:sns:us-east-1:670533574044:github-file-to-copy"
-g_secret_name = "/prod/githubCopy/appConfig"
+g_github_secret_name = "/prod/githubCopy/appConfig"
+g_s3_access_name  = "prod/s3/appKeys"
 g_endpoint_url = "https://secretsmanager.us-east-1.amazonaws.com"
 g_region_name = "us-east-1"
 g_myGithubConfig = None
-
+g_mys3AccessKeys = None
 
 def load_github_config():
     global g_myGithubConfig
     if g_myGithubConfig is None:
         log.debug("Loading config and creating new MyApp...")
-        config = get_secret()
-        g_myGithubConfig = GithubConfig(config)
+        config = get_secret(g_github_secret_name)
+        g_myGithubConfig = ConfigWrapper(config)
+
+def load_s3_access_config():
+    global g_mys3AccessKeys
+    if g_mys3AccessKeys is None:
+        log.debug("Loading config and creating new MyApp...")
+        config = get_secret(g_s3_access_name)
+        g_mys3AccessKeys = ConfigWrapper(config)
 
 class BreakoutException(Exception):
    """Base class for other exceptions"""
    pass
 
 
-class GithubConfig:
+class ConfigWrapper:
     def __init__(self, config):
         """
         Construct new GithubConfig with configuration
@@ -55,8 +63,7 @@ class GithubConfig:
         return self.config
 
 
-def get_secret():
-    secret_name = g_secret_name
+def get_secret(secret_name):
     endpoint_url = g_endpoint_url
     region_name =  g_region_name
     secret = {}
@@ -127,8 +134,11 @@ def queue_files_to_download(repository, sha, server_path, bucket, basedir, repna
             except (GithubException, IOError) as exc:
                 log.error('Error processing %s: %s', content.path, exc)
 
-def download_file(repository, githubFile,sha,s3bucket,s3path, s3basedir):
-    s3 = boto3.resource('s3')
+def download_file(repository, githubFile,sha,s3bucket,s3path, s3basedir, access_keys):
+    session = boto3.Session(
+       aws_access_key_id= access_keys["aws_access_key_id"],
+       aws_secret_access_key=access_keys["aws_secret_access_key"],)
+    s3 = session.resource('s3')
     file_content = repository.get_contents(githubFile, ref=sha)
     file_data = base64.b64decode(file_content.content)
     s3.Object(s3bucket, s3basedir + "/" + s3path).put(Body=file_data)
@@ -250,14 +260,17 @@ def githubFileCopy(event, context):
     log.debug("Received event {}".format(json.dumps(event)))
 
     try:
-        message = json.loads(event["Message"])
+        message = json.loads(event["Records"][0]["Sns"]["Message"])
         if g_myGithubConfig is None:
             load_github_config()
         secret = g_myGithubConfig.get_config()
+        if g_mys3AccessKeys is None:
+            load_s3_access_config()
+        s3_access_keys = g_mys3AccessKeys.get_config()
         node = secret[message["repositoryName"]]
         g = Github(node['githubAPIKey'])
         r = g.get_user().get_repo(message["repositoryName"])
-        download_file(r, message["githubFile"], message["sha"], message["s3bucket"],message["s3path"],message["s3basedir"])
+        download_file(r, message["githubFile"], message["sha"], message["s3bucket"],message["s3path"],message["s3basedir"], s3_access_keys)
 
     except BreakoutException:
         pass
