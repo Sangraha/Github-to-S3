@@ -203,33 +203,35 @@ def githubWebhook(event, context):
                 raise BreakoutException
             '''
 
+        #validate
+        log.debug("event body = {}".format(event['body']))
+        body = json.loads(event['body'])
+        repository = body['repository']['name']
+        log.debug("event detected for repository=" + repository)
+        node = secret[repository]
+        secretAsbytearray = bytearray()
+        secretAsbytearray.extend(map(ord, node['githubWebhookSecret']))
+        bodyAsbytearray = bytearray()
+        bodyAsbytearray.extend(map(ord, str(event["body"])))
+        mac = hmac.new(secretAsbytearray, msg=bodyAsbytearray, digestmod=hashlib.sha1)
+        log.debug("calculated mac=", mac.hexdigest())
+
         # implement ping
         githubEvent = githubEvent.strip()
         if githubEvent == 'ping':
             plain_ret['body']['msg'] = 'pong'
-            plain_ret['statusCode'] = 200
+            plain_ret['statusCode'] = 200s
             raise BreakoutException
 
         plain_ret['body']['msg'] = 'No processing done as event was not relevant'
         if githubEvent == 'push':
-            log.debug (event['body'])
-            body = json.loads(event['body'])
-            repository = body['repository']['name']
-            log.debug("push event detected for repository=" + repository)
             try:
-                n = secret[repository]
-                secretAsbytearray = bytearray()
-                secretAsbytearray.extend(map(ord, n['githubWebhookSecret']))
-                bodyAsbytearray = bytearray()
-                bodyAsbytearray.extend(map(ord, str(event["body"])))
-                mac = hmac.new(secretAsbytearray, msg=bodyAsbytearray, digestmod=hashlib.sha1)
-                log.debug("calculated mac=", mac.hexdigest())
-                g = Github(n['githubAPIKey'])
+                g = Github(node['githubAPIKey'])
                 r = g.get_user().get_repo(repository)
                 f_c = r.get_branches()
                 matched_branches = [match for match in f_c if match.name == "master"]
-                queue_files_to_download(r, matched_branches[0].commit.sha, "/", n['bucket'], n['bucketDir'])
-                log.debug("Downloaded repository to S3 location")
+                queue_files_to_download(r, matched_branches[0].commit.sha, "/", node['bucket'], node['bucketDir'])
+                log.debug("Queued files for Download")
                 plain_ret['body']['msg'] = "Push event processed"
                 plain_ret['statusCode'] = 200
             except KeyError as e:
