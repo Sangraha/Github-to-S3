@@ -95,34 +95,33 @@ def get_secret():
     log.debug("SECRECT : {}".format(secret))
     return json.loads(secret)
 
-def send_message(repname, githubFile, s3bucket, s3basedir, s3path):
+def send_message(client,repname, githubFile, s3bucket, s3basedir, s3path):
     message = {"repositoryName": repname,
                "githubFile" : githubFile,
                "s3bucket" : s3bucket,
                "s3basedir": s3basedir,
                "s3path" : s3path
                }
-    client = boto3.client('sns')
 
     sns_response = client.publish(
         TargetArn=g_sns_arn,
         Message=json.dumps({'default': json.dumps(message)}),
         MessageStructure='json'
     )
-    log.debug("send message response :" + sns_response)
+    log.debug("send message response :".format( sns_response))
 
-def queue_files_to_download(repository, sha, server_path, bucket, basedir, repname):
+def queue_files_to_download(repository, sha, server_path, bucket, basedir, repname, sns_client):
     contents = repository.get_dir_contents(server_path, ref=sha)
     for content in contents:
         if content.type == 'dir':
-            queue_files_to_download(repository, sha, content.path, bucket, basedir+"/"+content.path,repname)
+            queue_files_to_download(repository, sha, content.path, bucket, basedir+"/"+content.path,repname, sns_client)
         else :
             try:
                 path = content.path
                 #file_content = repository.get_contents(path, ref=sha)
                 #file_data = base64.b64decode(file_content.content)
                 #s3.Object(bucket, basedir + "/" +content.name).put(Body=file_data)
-                send_message(repname, path, bucket,basedir,content.name)
+                send_message(sns_client, repname, path, bucket,basedir,content.name)
                 log.debug( "queing file = {}".format( path) + " to s3 path = {}".format( basedir) + "/".format( content.name))
             except (GithubException, IOError) as exc:
                 log.error('Error processing %s: %s', content.path, exc)
@@ -231,7 +230,8 @@ def githubWebhook(event, context):
                 r = g.get_user().get_repo(repository)
                 f_c = r.get_branches()
                 matched_branches = [match for match in f_c if match.name == "master"]
-                queue_files_to_download(r, matched_branches[0].commit.sha, "/", node['bucket'], node['bucketDir'],repository )
+                sns_client = boto3.client('sns')
+                queue_files_to_download(r, matched_branches[0].commit.sha, "/", node['bucket'], node['bucketDir'],repository, sns_client )
                 log.debug("Queued files for Download")
                 plain_ret['body']['msg'] = "Push event processed"
                 plain_ret['statusCode'] = 200
