@@ -95,12 +95,13 @@ def get_secret():
     log.debug("SECRECT : {}".format(secret))
     return json.loads(secret)
 
-def send_message(client,repname, githubFile, s3bucket, s3basedir, s3path):
+def send_message(client,repname, githubFile, s3bucket, s3basedir, s3path, sha):
     message = {"repositoryName": repname,
                "githubFile" : githubFile,
                "s3bucket" : s3bucket,
                "s3basedir": s3basedir,
-               "s3path" : s3path
+               "s3path" : s3path,
+               "sha" : sha
                }
 
     sns_response = client.publish(
@@ -121,18 +122,16 @@ def queue_files_to_download(repository, sha, server_path, bucket, basedir, repna
                 #file_content = repository.get_contents(path, ref=sha)
                 #file_data = base64.b64decode(file_content.content)
                 #s3.Object(bucket, basedir + "/" +content.name).put(Body=file_data)
-                send_message(sns_client, repname, path, bucket,basedir,content.name)
+                send_message(sns_client, repname, path, bucket,basedir,content.name, sha)
                 log.debug( "queing file = {}".format( path) + " to s3 path = {}".format( basedir) + "/".format( content.name))
             except (GithubException, IOError) as exc:
                 log.error('Error processing %s: %s', content.path, exc)
 
-
-def download_file(repository, path,sha,bucket,content, basedir):
+def download_file(repository, githubFile,sha,s3bucket,s3path, s3basedir):
     s3 = boto3.resource('s3')
-    file_content = repository.get_contents(path, ref=sha)
+    file_content = repository.get_contents(githubFile, ref=sha)
     file_data = base64.b64decode(file_content.content)
-    s3.Object(bucket, basedir + "/" + content.name).put(Body=file_data)
-    log.debug("writing file = ", content.name, " to s3 path = ", basedir + "/" + content.name)
+    s3.Object(s3bucket, s3basedir + "/" + s3path).put(Body=file_data)
 
 
 def githubWebhook(event, context):
@@ -251,9 +250,14 @@ def githubFileCopy(event, context):
     log.debug("Received event {}".format(json.dumps(event)))
 
     try:
-
+        message = json.loads(event["Message"])
         if g_myGithubConfig is None:
             load_github_config()
+        secret = g_myGithubConfig.get_config()
+        node = secret[message["repositoryName"]]
+        g = Github(node['githubAPIKey'])
+        r = g.get_user().get_repo(message["repositoryName"])
+        download_file(r, message["githubFile"], message["sha"], message["s3bucket"],message["s3path"],message["s3basedir"])
 
     except BreakoutException:
         pass
