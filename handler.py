@@ -281,6 +281,8 @@ def githubFileCopy(event, context):
     log.debug("Received event {}".format(json.dumps(event)))
 
     try:
+        g_github_secret_name = os.environ['githubconfig']
+        g_s3_access_name = os.environ['s3accessKeys']
         message = json.loads(event["Records"][0]["Sns"]["Message"])
         if g_myGithubConfig is None:
             load_github_config()
@@ -289,8 +291,6 @@ def githubFileCopy(event, context):
         if g_mys3AccessKeys is None:
             load_s3_access_config()
         s3_access_keys = g_mys3AccessKeys.get_config()
-        g_github_secret_name = os.environ['githubconfig']
-        g_s3_access_name = os.environ['s3accessKeys']
         node = secret[message["repositoryName"]]
         g = Github(node['githubAPIKey'])
         r = g.get_user().get_repo(message["repositoryName"])
